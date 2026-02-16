@@ -1,9 +1,9 @@
-defmodule Aeg.MixProject do
+defmodule AegRL.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :aeg,
+      app: :aeg_rl,
       version: "0.1.0",
       build_path: "../../_build",
       config_path: "../../config/config.exs",
@@ -18,16 +18,13 @@ defmodule Aeg.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Aeg.Application, []}
+      mod: {AegRL.Application, []}
     ]
   end
 
   defp deps do
     [
-      {:aeg_runtime, in_umbrella: true},
-      {:aeg_world, in_umbrella: true},
-      {:aeg_multi_agent, in_umbrella: true},
-      {:aeg_gateway, in_umbrella: true}
+      {:aeg_world, in_umbrella: true}
     ]
   end
 end

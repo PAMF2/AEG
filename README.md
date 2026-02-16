@@ -47,7 +47,10 @@ apps/
 - In-memory memory/persistence via ETS for local dev
 - Eval gate (`AegEval.Gate`) for regression control
 - Proactive policy abstraction (`AegProactive.Policy`)
+- Proactive scheduler with cooldown (`AegProactive.Scheduler`)
 - World rollout loop with safety gate (`AegWorld.Rollout` + `AegWorld.SafetyPolicy`)
+- Provider retry/fallback routing (`AegRouter`)
+- Tool rate limiting and permission checks (`AegTools`)
 
 ## Prerequisites
 
@@ -136,6 +139,50 @@ git remote add origin <YOUR_GITHUB_REPO_URL>
 git push -u origin main
 ```
 
+## CI
+
+GitHub Actions workflow at `.github/workflows/ci.yml` runs:
+- `mix deps.get`
+- `mix format --check-formatted`
+- `mix compile --warnings-as-errors`
+- `mix test`
+
 ## License
 
 Apache License 2.0. See `LICENSE`.
+
+## Advanced Feature Apps
+
+- `aeg_tools`: tool registry, permissions and execution contracts.
+- `aeg_router`: model routing/failover across providers.
+- `aeg_multi_agent`: planner/executor/critic orchestration.
+- `aeg_gateway`: channel/webhook gateway entrypoint.
+- `aeg_skills`: skill packages mapping intents to tools.
+- `aeg_observability`: telemetry event wrappers.
+- `aeg_mcp`: MCP bridge contracts and normalization.
+- `aeg_world_reasoning`: reasoning-action alignment for AV/world loops.
+
+These modules are scaffolded and partially implemented to accelerate feature parity work.
+
+## RL Training (New)
+
+`aeg_rl` adds basic RL support:
+- `AegRL.Environment` behaviour
+- `AegRL.Policy` behaviour
+- `AegRL.EpsilonGreedyPolicy`
+- `AegRL.Trainer` (tabular Q-learning)
+- `AegRL.WorldEnvAdapter` for world-model integration
+
+Example:
+
+```elixir
+AegRL.Trainer.train(
+  AegRL.WorldEnvAdapter,
+  AegRL.EpsilonGreedyPolicy,
+  world_model: MyWorldModel,
+  episodes: 200,
+  epsilon: 0.2,
+  alpha: 0.1,
+  gamma: 0.95
+)
+```

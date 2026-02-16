@@ -29,7 +29,10 @@ defmodule AegRuntime.MixProject do
       {:aeg_memory, in_umbrella: true},
       {:aeg_proactive, in_umbrella: true},
       {:aeg_persistence, in_umbrella: true},
-      {:aeg_world, in_umbrella: true}
+      {:aeg_world, in_umbrella: true},
+      {:aeg_router, in_umbrella: true},
+      {:aeg_tools, in_umbrella: true},
+      {:aeg_observability, in_umbrella: true}
     ]
   end
 end

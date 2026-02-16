@@ -1,28 +1,39 @@
 defmodule AegRuntime.Engine do
   @moduledoc """
-  End-to-end runtime pipeline: guard -> plan -> memory -> model -> eval.
+  End-to-end runtime pipeline: guard -> plan -> memory -> model -> eval -> persistence.
   """
 
   alias AegGuard.Decision
 
   @spec run(String.t() | map(), map(), keyword()) :: {:ok, map()} | {:error, term()}
   def run(task, context \\ %{}, opts \\ []) do
+    started = System.monotonic_time(:millisecond)
     input = task_to_string(task)
     guard_policy = Keyword.get(opts, :guard_policy, AegGuard.Policy.Default)
 
-    case AegGuard.check(input, context, guard_policy) do
-      %Decision{action: :block} = decision ->
-        {:error, {:blocked, decision.reason}}
+    AegObservability.RuntimeEvents.run_started(%{session_id: Map.get(context, :session_id, "default")})
 
-      %Decision{} = decision ->
-        with {:ok, subgoals} <- plan(task, context, opts),
-             :ok <- store_memory(context, input, subgoals, opts),
-             {:ok, output} <- run_model(subgoals, opts),
-             :ok <- maybe_run_evals(output, opts),
-             :ok <- persist_event(context, input, subgoals, output, decision, opts) do
-          {:ok, %{decision: decision, subgoals: subgoals, output: output}}
-        end
-    end
+    result =
+      case AegGuard.check(input, context, guard_policy) do
+        %Decision{action: :block} = decision ->
+          {:error, {:blocked, decision.reason}}
+
+        %Decision{action: :intercept} = decision ->
+          {:error, {:intercepted, decision.reason}}
+
+        %Decision{} = decision ->
+          with {:ok, subgoals} <- plan(task, context, opts),
+               :ok <- store_memory(context, input, subgoals, opts),
+               {:ok, output} <- run_model(subgoals, context, opts),
+               :ok <- maybe_run_evals(output, opts),
+               :ok <- persist_event(context, input, subgoals, output, decision, opts) do
+            {:ok, %{decision: decision, subgoals: subgoals, output: output}}
+          end
+      end
+
+    elapsed = System.monotonic_time(:millisecond) - started
+    AegObservability.RuntimeEvents.run_finished(elapsed, %{result: elem(result, 0)})
+    result
   end
 
   defp plan(task, context, opts) do
@@ -38,14 +49,25 @@ defmodule AegRuntime.Engine do
     AegMemory.put(store, session_id, %{input: input, subgoals: subgoals, inserted_at: DateTime.utc_now()})
   end
 
-  defp run_model(subgoals, opts) do
-    provider = Keyword.get(opts, :model_provider)
+  defp run_model(subgoals, context, opts) do
+    messages = [%{role: "user", content: "Execute subgoals: #{inspect(subgoals)}"}]
 
-    if is_nil(provider) do
-      {:ok, %{text: "No provider configured", subgoal_count: length(subgoals)}}
-    else
-      messages = [%{role: "user", content: "Execute subgoals: #{inspect(subgoals)}"}]
-      provider.complete(messages, opts)
+    providers = Keyword.get(opts, :model_providers, [])
+    policy = Keyword.get(opts, :router_policy, AegRouter.DefaultPolicy)
+
+    case providers do
+      [] ->
+        provider = Keyword.get(opts, :model_provider)
+
+        if is_nil(provider) do
+          {:ok, %{text: "No provider configured", subgoal_count: length(subgoals)}}
+        else
+          provider.complete(messages, opts)
+        end
+
+      _ ->
+        ordered = policy.order(providers, context, opts)
+        AegRouter.complete(ordered, messages, opts)
     end
   end
 
